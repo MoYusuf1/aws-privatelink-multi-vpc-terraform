@@ -7,6 +7,41 @@
 mock_provider "aws" {
   alias = "shared"
 
+  # The AWS provider validates ARN and ID formats even under mocks, so computed values
+  # that feed other resources need realistic shapes.
+  mock_resource "aws_iam_role" {
+    defaults = { arn = "arn:aws:iam::111111111111:role/mock-flow-logs" }
+  }
+
+  mock_resource "aws_cloudwatch_log_group" {
+    defaults = { arn = "arn:aws:logs:us-east-1:111111111111:log-group:/vpc/mock/flow-logs" }
+  }
+
+  mock_resource "aws_launch_template" {
+    defaults = { id = "lt-0123456789abcdef0" }
+  }
+
+  mock_resource "aws_lb" {
+    defaults = {
+      arn        = "arn:aws:elasticloadbalancing:us-east-1:111111111111:loadbalancer/net/mock-nlb/0123456789abcdef"
+      arn_suffix = "net/mock-nlb/0123456789abcdef"
+    }
+  }
+
+  mock_resource "aws_lb_target_group" {
+    defaults = {
+      arn        = "arn:aws:elasticloadbalancing:us-east-1:111111111111:targetgroup/app-mock/0123456789abcdef"
+      arn_suffix = "targetgroup/app-mock/0123456789abcdef"
+    }
+  }
+
+  mock_resource "aws_vpc_endpoint_service" {
+    defaults = {
+      id           = "vpce-svc-0123456789abcdef0"
+      service_name = "com.amazonaws.vpce.us-east-1.vpce-svc-0123456789abcdef0"
+    }
+  }
+
   mock_data "aws_availability_zones" {
     defaults = {
       names    = ["us-east-1a", "us-east-1b", "us-east-1c"]
@@ -30,6 +65,16 @@ mock_provider "aws" {
 mock_provider "aws" {
   alias = "payments"
 
+  # The AWS provider validates ARN and ID formats even under mocks, so computed values
+  # that feed other resources need realistic shapes.
+  mock_resource "aws_iam_role" {
+    defaults = { arn = "arn:aws:iam::111111111111:role/mock-flow-logs" }
+  }
+
+  mock_resource "aws_cloudwatch_log_group" {
+    defaults = { arn = "arn:aws:logs:us-east-1:111111111111:log-group:/vpc/mock/flow-logs" }
+  }
+
   mock_data "aws_caller_identity" {
     defaults = { account_id = "222222222222" }
   }
@@ -50,6 +95,16 @@ mock_provider "aws" {
 
 mock_provider "aws" {
   alias = "analytics"
+
+  # The AWS provider validates ARN and ID formats even under mocks, so computed values
+  # that feed other resources need realistic shapes.
+  mock_resource "aws_iam_role" {
+    defaults = { arn = "arn:aws:iam::111111111111:role/mock-flow-logs" }
+  }
+
+  mock_resource "aws_cloudwatch_log_group" {
+    defaults = { arn = "arn:aws:logs:us-east-1:111111111111:log-group:/vpc/mock/flow-logs" }
+  }
 
   mock_data "aws_caller_identity" {
     defaults = { account_id = "333333333333" }
@@ -83,17 +138,22 @@ run "design_holds_with_defaults" {
   }
 
   assert {
-    condition     = output.az_ids == ["use1-az1", "use1-az2"]
+    condition     = output.az_ids == tolist(["use1-az1", "use1-az2"])
     error_message = "Expected the first two AZ IDs when none are pinned."
   }
 
   assert {
-    condition     = length(module.shared_service.nlb_subnet_ids) == 2
-    error_message = "The NLB must span two AZs."
+    condition     = length(module.shared_services_network.private_subnet_ids) == 2
+    error_message = "Shared Services needs one private subnet in each of two AZs."
   }
 
   assert {
-    condition     = module.shared_service.nlb_ingress_cidrs == ["10.20.0.0/16", "10.30.0.0/16"]
+    condition     = module.shared_service.nlb_subnet_ids == toset(module.shared_services_network.private_subnet_ids)
+    error_message = "The NLB must span every Shared Services private subnet."
+  }
+
+  assert {
+    condition     = module.shared_service.nlb_ingress_cidrs == tolist(["10.20.0.0/16", "10.30.0.0/16"])
     error_message = "Only the Payments and Analytics VPCs may reach the NLB. Nothing broader, never 0.0.0.0/0."
   }
 
@@ -150,7 +210,7 @@ run "pinned_az_ids_are_used" {
   }
 
   assert {
-    condition     = output.az_ids == ["use1-az4", "use1-az2"]
+    condition     = output.az_ids == tolist(["use1-az4", "use1-az2"])
     error_message = "Pinned AZ IDs must be used as given."
   }
 }
