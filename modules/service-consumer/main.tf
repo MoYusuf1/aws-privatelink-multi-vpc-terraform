@@ -1,20 +1,12 @@
-# One consuming team's side of the link: an interface endpoint in its own VPC, a private
-# DNS name so callers keep using a stable hostname, and an optional test client.
-
 locals {
   hostname_labels = split(".", var.service_hostname)
-  # "app.shared.internal" -> zone "shared.internal"
-  zone_name = join(".", slice(local.hostname_labels, 1, length(local.hostname_labels)))
+  zone_name       = join(".", slice(local.hostname_labels, 1, length(local.hostname_labels)))
 }
 
 data "aws_ssm_parameter" "al2023_ami" {
   count = var.create_test_client ? 1 : 0
   name  = var.ami_ssm_parameter
 }
-
-# ---------------------------------------------------------------------------
-# Security groups
-# ---------------------------------------------------------------------------
 
 resource "aws_security_group" "client" {
   name        = "${var.name}-client"
@@ -50,10 +42,6 @@ resource "aws_vpc_security_group_ingress_rule" "endpoint_from_client" {
   referenced_security_group_id = aws_security_group.client.id
 }
 
-# ---------------------------------------------------------------------------
-# Interface endpoint. It stays in pendingAcceptance until the service owner approves it.
-# ---------------------------------------------------------------------------
-
 resource "aws_vpc_endpoint" "shared_service" {
   vpc_id              = var.vpc_id
   service_name        = var.service_name
@@ -65,8 +53,6 @@ resource "aws_vpc_endpoint" "shared_service" {
   tags = { Name = "${var.name}-shared-svc" }
 }
 
-# Private DNS without owning a public domain: a private hosted zone attached only to this
-# VPC, with an alias to the endpoint. Callers use the same hostname in every consumer VPC.
 resource "aws_route53_zone" "shared_service" {
   #checkov:skip=CKV2_AWS_38:DNSSEC signing is not supported for private hosted zones.
   #checkov:skip=CKV2_AWS_39:Query logging is not supported for private hosted zones. Resolver query logging would be the production option.
@@ -89,11 +75,6 @@ resource "aws_route53_record" "shared_service" {
     evaluate_target_health = false
   }
 }
-
-# ---------------------------------------------------------------------------
-# Optional test client, reachable through an EC2 Instance Connect Endpoint (no public IP,
-# no bastion, no extra charge).
-# ---------------------------------------------------------------------------
 
 resource "aws_security_group" "eice" {
   #checkov:skip=CKV2_AWS_5:False positive. Attached to aws_ec2_instance_connect_endpoint below, which checkov does not recognise.
@@ -135,7 +116,7 @@ resource "aws_ec2_instance_connect_endpoint" "this" {
   subnet_id          = var.subnet_ids[0]
   security_group_ids = [aws_security_group.eice[0].id]
 
-  # Source traffic from the endpoint itself so the client SG can reference the EICE SG.
+  # Lets the client security group reference the EICE security group.
   preserve_client_ip = false
 
   tags = { Name = "${var.name}-instance-connect" }

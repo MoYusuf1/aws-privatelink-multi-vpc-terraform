@@ -1,6 +1,5 @@
 #!/bin/bash
-# Boots the lab app. Uses only what ships in the Amazon Linux 2023 AMI (python3, openssl),
-# so the app tier needs no outbound network access at all: no NAT, no package mirrors.
+# Uses only what ships in the AMI, so the app tier needs no egress.
 set -euo pipefail
 
 TOKEN=$(curl -sS -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
@@ -8,9 +7,8 @@ IMDS="http://169.254.169.254/latest/meta-data"
 INSTANCE_ID=$(curl -sS -H "X-aws-ec2-metadata-token: $TOKEN" "$IMDS/instance-id")
 AZ_ID=$(curl -sS -H "X-aws-ec2-metadata-token: $TOKEN" "$IMDS/placement/availability-zone-id")
 
-# Self-signed certificate so traffic is encrypted end to end in the lab.
-# Production would issue this from ACM Private CA or an internal PKI.
 install -d -m 0700 /etc/app/tls
+# Self-signed for the lab. Production would use ACM Private CA.
 openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
   -subj "/CN=${service_hostname}" \
   -addext "subjectAltName=DNS:${service_hostname}" \
@@ -28,8 +26,6 @@ INSTANCE_ID=$INSTANCE_ID
 AZ_ID=$AZ_ID
 ENV
 
-# Runs as a throwaway unprivileged user. It may bind the service port and read its TLS
-# key through systemd credentials, and nothing else.
 cat > /etc/systemd/system/shared-app.service <<'UNIT'
 [Unit]
 Description=Shared Services lab app (PrivateLink, Proxy Protocol v2)

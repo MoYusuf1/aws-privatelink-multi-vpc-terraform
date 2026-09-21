@@ -1,5 +1,4 @@
 # pip install pre-commit && pre-commit install
-# Runs the fast checks before every commit. CI runs the full set.
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0

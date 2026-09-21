@@ -1,12 +1,5 @@
 #!/usr/bin/env python3
-"""Tiny HTTPS app for the PrivateLink lab. Standard library only.
-
-Every connection from the NLB starts with a PROXY protocol v2 header. For PrivateLink
-traffic AWS adds a TLV of type 0xEA whose value is one subtype byte (0x01) followed by
-the caller's VPC endpoint ID. This server reads that header, then does the TLS handshake,
-and tells the caller which endpoint it came through. That is how the app tells Payments
-from Analytics even though every connection arrives from the NLB's own addresses.
-"""
+"""HTTPS service that reads the caller's VPC endpoint ID from the Proxy Protocol v2 header."""
 
 import datetime
 import ipaddress

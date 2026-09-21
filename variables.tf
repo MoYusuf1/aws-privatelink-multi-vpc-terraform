@@ -33,7 +33,6 @@ variable "vpc_cidrs" {
     analytics = "10.30.0.0/16"
   }
 
-  # Two CIDRs overlap when their network addresses match at the shorter of the two prefixes.
   validation {
     condition = alltrue(flatten([
       for i, a in values(var.vpc_cidrs) : [

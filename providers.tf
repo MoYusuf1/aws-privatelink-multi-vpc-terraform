@@ -1,9 +1,3 @@
-# One provider per team. Each one is its own AWS account in production.
-#
-# Left at the defaults, all three use whatever credentials you run Terraform with, so the
-# whole lab fits in a single account. Set the *_role_arn variables and the same code
-# deploys across three accounts without any other change.
-
 provider "aws" {
   alias  = "shared"
   region = var.region

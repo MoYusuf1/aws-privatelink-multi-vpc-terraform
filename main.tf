@@ -1,7 +1,3 @@
-# Three isolated VPCs. Payments and Analytics consume one application published by
-# Shared Services over PrivateLink. There is no peering, no transit gateway, no internet
-# gateway and no public IP anywhere in this configuration.
-
 data "aws_availability_zones" "shared" {
   #checkov:skip=CKV_AWS_394:Only used when var.az_ids is empty. Sorted AZ IDs keep the pick stable; pin var.az_ids for anything long lived.
   provider = aws.shared
@@ -26,8 +22,7 @@ data "aws_partition" "current" {
 }
 
 locals {
-  # AZ IDs rather than names: they identify the same physical zone in every account.
-  # Sorted, so a newly launched AZ does not shift which two are picked.
+  # Sorted so a newly launched AZ does not change the selection.
   az_ids = length(var.az_ids) > 0 ? var.az_ids : slice(sort(data.aws_availability_zones.shared.zone_ids), 0, 2)
 
   consumer_account_ids = {
@@ -35,10 +30,6 @@ locals {
     analytics = data.aws_caller_identity.analytics.account_id
   }
 }
-
-# ---------------------------------------------------------------------------
-# Networks: three boundaries built from the same module
-# ---------------------------------------------------------------------------
 
 module "shared_services_network" {
   source    = "./modules/network"
@@ -70,10 +61,6 @@ module "analytics_network" {
   flow_log_retention_days = var.flow_log_retention_days
 }
 
-# ---------------------------------------------------------------------------
-# Shared Services publishes the application
-# ---------------------------------------------------------------------------
-
 module "shared_service" {
   source    = "./modules/service-provider"
   providers = { aws = aws.shared }
@@ -98,10 +85,6 @@ module "shared_service" {
     "arn:${data.aws_partition.current.partition}:iam::${account_id}:root"
   ])
 }
-
-# ---------------------------------------------------------------------------
-# Payments and Analytics each request their own endpoint
-# ---------------------------------------------------------------------------
 
 module "payments_consumer" {
   source    = "./modules/service-consumer"
@@ -129,12 +112,7 @@ module "analytics_consumer" {
   create_test_client = var.create_test_clients
 }
 
-# ---------------------------------------------------------------------------
-# Approval. The service owner accepts each consumer explicitly. Adding a consumer is a
-# pull request that touches this map, so every approval has a reviewer and a history.
-# Removing an entry revokes that one consumer without affecting the other.
-# ---------------------------------------------------------------------------
-
+# Each entry is an approval. Remove one to revoke that consumer.
 resource "aws_vpc_endpoint_connection_accepter" "consumers" {
   provider = aws.shared
 

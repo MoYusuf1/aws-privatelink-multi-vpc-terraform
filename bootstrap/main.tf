@@ -1,8 +1,3 @@
-# Run once, with local state, before the main stack.
-# Creates the S3 bucket that holds remote state (locking uses an S3 lock file, so no
-# DynamoDB table) and, optionally, a GitHub Actions OIDC role that can run
-# `terraform plan` on pull requests without any long-lived AWS keys.
-
 terraform {
   required_version = ">= 1.10.0"
 
@@ -32,10 +27,6 @@ data "aws_partition" "current" {}
 locals {
   bucket_name = coalesce(var.state_bucket_name, "tfstate-privatelink-${data.aws_caller_identity.current.account_id}-${var.region}")
 }
-
-# ---------------------------------------------------------------------------
-# State bucket
-# ---------------------------------------------------------------------------
 
 resource "aws_s3_bucket" "state" {
   #checkov:skip=CKV_AWS_144:Cross-region replication is out of scope for a lab state bucket.
@@ -111,10 +102,6 @@ resource "aws_s3_bucket_policy" "state" {
 
   depends_on = [aws_s3_bucket_public_access_block.state]
 }
-
-# ---------------------------------------------------------------------------
-# GitHub Actions OIDC role for read-only plans (optional)
-# ---------------------------------------------------------------------------
 
 resource "aws_iam_openid_connect_provider" "github" {
   count = var.github_repository == null || !var.create_github_oidc_provider ? 0 : 1

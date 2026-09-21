@@ -1,17 +1,6 @@
-# Publishes one internal application as a PrivateLink endpoint service.
-#
-#   consumers --> interface endpoint --> [PrivateLink] --> internal NLB --> app instances (ASG, multi-AZ)
-#
-# Consumers connect to a service, never to a network. The instances behind the NLB can be
-# replaced or resized without any consumer noticing.
-
 data "aws_ssm_parameter" "al2023_ami" {
   name = var.ami_ssm_parameter
 }
-
-# ---------------------------------------------------------------------------
-# Security groups: one per workload, named for what they protect.
-# ---------------------------------------------------------------------------
 
 resource "aws_security_group" "nlb" {
   name        = "${var.name}-nlb"
@@ -29,9 +18,6 @@ resource "aws_security_group" "app" {
   tags = { Name = "${var.name}-app" }
 }
 
-# With enforcement on (see aws_lb below), PrivateLink traffic is checked against these
-# rules using the consumer client's private IP. Only the approved consumer VPC ranges
-# get in, and only on the service port. This depends on consumer CIDRs not overlapping.
 resource "aws_vpc_security_group_ingress_rule" "nlb_from_consumers" {
   for_each = var.consumer_cidrs
 
@@ -43,8 +29,6 @@ resource "aws_vpc_security_group_ingress_rule" "nlb_from_consumers" {
   cidr_ipv4         = each.value
 }
 
-# NLB health checks are governed by the NLB's outbound rules, so this one rule covers
-# both forwarded traffic and TCP health checks.
 resource "aws_vpc_security_group_egress_rule" "nlb_to_app" {
   security_group_id            = aws_security_group.nlb.id
   description                  = "Forward and health check to app instances"
@@ -63,14 +47,7 @@ resource "aws_vpc_security_group_ingress_rule" "app_from_nlb" {
   referenced_security_group_id = aws_security_group.nlb.id
 }
 
-# No egress rules on the app group at all. Terraform removes the allow-all rule AWS adds
-# to new groups, and replies to the NLB are allowed because security groups are stateful.
-# The app never needs to start a connection, so it cannot.
-
-# ---------------------------------------------------------------------------
-# Application tier: Auto Scaling group spread across every AZ the service supports.
-# ---------------------------------------------------------------------------
-
+# The app security group has no egress rules. The app never initiates connections.
 resource "aws_launch_template" "app" {
   name_prefix   = "${var.name}-app-"
   image_id      = data.aws_ssm_parameter.al2023_ami.value
@@ -126,7 +103,6 @@ resource "aws_autoscaling_group" "app" {
     version = aws_launch_template.app.latest_version
   }
 
-  # A launch template change rolls instances in place instead of replacing them all at once.
   instance_refresh {
     strategy = "Rolling"
     preferences {
@@ -141,11 +117,6 @@ resource "aws_autoscaling_group" "app" {
   }
 }
 
-# ---------------------------------------------------------------------------
-# Internal NLB. An endpoint service only accepts a Network Load Balancer, so any
-# layer 7 routing would sit behind it, not in front.
-# ---------------------------------------------------------------------------
-
 resource "aws_lb" "this" {
   #checkov:skip=CKV_AWS_91:NLB access logs only cover TLS listeners. This listener is TCP passthrough; flow logs cover connections.
   #checkov:skip=CKV_AWS_150:Lab must tear down cleanly with terraform destroy. Production would set this via var.
@@ -159,8 +130,7 @@ resource "aws_lb" "this" {
 
   enforce_security_group_inbound_rules_on_private_link_traffic = "on"
 
-  # Keeps the service answering from every endpoint AZ even if one AZ loses its targets.
-  # Trade-off: cross-AZ data transfer. Written down here so it is a decision, not a default.
+  # Trades inter-AZ transfer cost for tolerance of a single AZ losing its targets.
   enable_cross_zone_load_balancing = true
   enable_deletion_protection       = var.deletion_protection
 
@@ -174,9 +144,7 @@ resource "aws_lb_target_group" "app" {
   vpc_id      = var.vpc_id
   target_type = "instance"
 
-  # Behind PrivateLink every request arrives from the NLB's own addresses. Proxy
-  # Protocol v2 passes along the original client IP and the caller's VPC endpoint ID,
-  # which is what lets the app tell Payments from Analytics.
+  # Passes the caller's VPC endpoint ID to the app.
   proxy_protocol_v2 = true
 
   deregistration_delay = 30
@@ -207,11 +175,6 @@ resource "aws_lb_listener" "app" {
   }
 }
 
-# ---------------------------------------------------------------------------
-# The endpoint service. Approval stays on: nothing connects unless the owning team
-# says yes, and in this repo "yes" is a reviewed pull request.
-# ---------------------------------------------------------------------------
-
 resource "aws_vpc_endpoint_service" "this" {
   acceptance_required        = true
   network_load_balancer_arns = [aws_lb.this.arn]
@@ -220,18 +183,12 @@ resource "aws_vpc_endpoint_service" "this" {
   tags = { Name = "${var.name}-endpoint-service" }
 }
 
-# Who may even request a connection. Accepting a request is a separate step
-# (aws_vpc_endpoint_connection_accepter in the root module).
 resource "aws_vpc_endpoint_service_allowed_principal" "consumers" {
   for_each = var.allowed_principal_arns
 
   vpc_endpoint_service_id = aws_vpc_endpoint_service.this.id
   principal_arn           = each.value
 }
-
-# ---------------------------------------------------------------------------
-# Monitoring: alarm when fewer healthy targets than expected are behind the NLB.
-# ---------------------------------------------------------------------------
 
 resource "aws_cloudwatch_metric_alarm" "healthy_hosts" {
   alarm_name          = "${var.name}-healthy-hosts-low"

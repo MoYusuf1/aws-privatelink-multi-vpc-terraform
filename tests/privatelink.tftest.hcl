@@ -1,14 +1,8 @@
-# Offline tests. Mock providers stand in for AWS, so these run in CI with no credentials
-# and no cost. They check the design decisions, not AWS itself.
-#
-#   terraform init -backend=false
-#   terraform test
-
+# Mocked AWS providers: no credentials, no cost.
 mock_provider "aws" {
   alias = "shared"
 
-  # The AWS provider validates ARN and ID formats even under mocks, so computed values
-  # that feed other resources need realistic shapes.
+  # The provider validates ARN formats even under mocks.
   mock_resource "aws_iam_role" {
     defaults = { arn = "arn:aws:iam::111111111111:role/mock-flow-logs" }
   }
@@ -65,8 +59,6 @@ mock_provider "aws" {
 mock_provider "aws" {
   alias = "payments"
 
-  # The AWS provider validates ARN and ID formats even under mocks, so computed values
-  # that feed other resources need realistic shapes.
   mock_resource "aws_iam_role" {
     defaults = { arn = "arn:aws:iam::111111111111:role/mock-flow-logs" }
   }
@@ -96,8 +88,6 @@ mock_provider "aws" {
 mock_provider "aws" {
   alias = "analytics"
 
-  # The AWS provider validates ARN and ID formats even under mocks, so computed values
-  # that feed other resources need realistic shapes.
   mock_resource "aws_iam_role" {
     defaults = { arn = "arn:aws:iam::111111111111:role/mock-flow-logs" }
   }

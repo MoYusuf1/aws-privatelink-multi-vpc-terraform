@@ -1,5 +1,4 @@
 terraform {
-  # 1.10+ for native S3 state locking (use_lockfile), 1.7+ for mocked tests.
   required_version = ">= 1.10.0"
 
   required_providers {
@@ -9,7 +8,6 @@ terraform {
     }
   }
 
-  # Partial configuration. Values come from backend.hcl (see backend.hcl.example),
-  # created by the bootstrap/ stack.
+  # Partial config. See backend.hcl.example.
   backend "s3" {}
 }

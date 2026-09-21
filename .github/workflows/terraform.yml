@@ -69,8 +69,7 @@ jobs:
 
   plan:
     name: plan (comment on PR)
-    # Runs only on pull requests, and only once the bootstrap OIDC role is configured
-    # as repository variables. Nothing here can apply.
+    # Runs once the bootstrap OIDC role is configured. Read only.
     if: github.event_name == 'pull_request' && vars.AWS_PLAN_ROLE_ARN != ''
     needs: [validate, lint, security]
     runs-on: ubuntu-latest
