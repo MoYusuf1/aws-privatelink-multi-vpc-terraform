@@ -52,9 +52,7 @@ flowchart LR
 
 A request from Payments resolves `app.shared.internal` to the endpoint in its own VPC, crosses the AWS network to the endpoint service, and reaches the application through the internal NLB. The NLB adds a Proxy Protocol v2 header carrying the caller's endpoint ID, so the application knows which team called. Analytics takes the same path through its own endpoint. Nothing touches the public internet, and nothing creates a route between VPCs.
 
-## Evidence
-
-Screenshots from a real apply and the failure tests live in [`docs/images`](docs/images).
+## Example output
 
 ```
 $ curl -sk https://app.shared.internal        # from the Payments client

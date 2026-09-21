@@ -116,11 +116,3 @@ terraform plan -var='vpc_cidrs={shared="10.10.0.0/16",payments="10.0.0.0/8",anal
 ```
 
 **Expect:** the plan fails on the `vpc_cidrs` validation. The NLB security group filters consumers by address range, so overlapping ranges would silently let one team pass as another. Terraform refuses before anything is created.
-
----
-
-## What to capture for the write-up
-
-- The loop output during Test 1 showing `served_by` change.
-- The rejected Analytics connection in the endpoint service console during Test 2.
-- Healthy targets next to `FAILED` requests during Test 3, and the `terraform plan` diff that found the drift.
