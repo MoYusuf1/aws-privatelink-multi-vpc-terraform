@@ -9,7 +9,7 @@
 
 Three isolated VPCs for a fintech scenario. Payments and Analytics both consume one internal application owned by Shared Services. They reach it privately through AWS PrivateLink with no VPC peering, no transit gateway, no internet gateway, and no public IP anywhere, and neither consumer can reach the other.
 
-I first built this in the console ([article](https://www.linkedin.com/pulse/how-i-built-private-multi-vpc-architecture-aws-mohamed-yusuf-xjnoc/)). This repo rebuilds it in Terraform, adds the production improvements that article listed, and then breaks it on purpose to prove the controls hold ([article](#) coming soon).
+I first built this in the console ([article](https://www.linkedin.com/pulse/how-i-built-private-multi-vpc-architecture-aws-mohamed-yusuf-xjnoc/)). This repo rebuilds it in Terraform, adds the production improvements that article listed, and includes failure tests that break it on purpose to prove the controls hold ([article](#) coming soon).
 
 ## What this project demonstrates
 
