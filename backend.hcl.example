@@ -1,0 +1,6 @@
+# Copy to backend.hcl (git-ignored) and fill in from `terraform -chdir=bootstrap output backend_hcl`.
+bucket       = "tfstate-privatelink-123456789012-us-east-1"
+key          = "privatelink/terraform.tfstate"
+region       = "us-east-1"
+encrypt      = true
+use_lockfile = true

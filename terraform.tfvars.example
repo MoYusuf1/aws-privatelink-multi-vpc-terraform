@@ -1,0 +1,17 @@
+# Copy to terraform.tfvars to override defaults. Everything here is optional.
+
+region      = "us-east-1"
+name_prefix = "fintech-lab"
+
+# Pin AZ IDs explicitly if you like. They mean the same physical zone in every account.
+# az_ids = ["use1-az1", "use1-az2"]
+
+# Multi-account: point each team at a role in its own account.
+# account_role_arns = {
+#   shared    = "arn:aws:iam::111111111111:role/terraform"
+#   payments  = "arn:aws:iam::222222222222:role/terraform"
+#   analytics = "arn:aws:iam::333333333333:role/terraform"
+# }
+
+# Turn off the test clients once you have verified the design.
+# create_test_clients = false

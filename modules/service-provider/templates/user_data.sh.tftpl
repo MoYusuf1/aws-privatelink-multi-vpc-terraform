@@ -1,0 +1,58 @@
+#!/bin/bash
+# Boots the lab app. Uses only what ships in the Amazon Linux 2023 AMI (python3, openssl),
+# so the app tier needs no outbound network access at all: no NAT, no package mirrors.
+set -euo pipefail
+
+TOKEN=$(curl -sS -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+IMDS="http://169.254.169.254/latest/meta-data"
+INSTANCE_ID=$(curl -sS -H "X-aws-ec2-metadata-token: $TOKEN" "$IMDS/instance-id")
+AZ_ID=$(curl -sS -H "X-aws-ec2-metadata-token: $TOKEN" "$IMDS/placement/availability-zone-id")
+
+# Self-signed certificate so traffic is encrypted end to end in the lab.
+# Production would issue this from ACM Private CA or an internal PKI.
+install -d -m 0700 /etc/app/tls
+openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
+  -subj "/CN=${service_hostname}" \
+  -addext "subjectAltName=DNS:${service_hostname}" \
+  -keyout /etc/app/tls/app.key -out /etc/app/tls/app.crt
+chmod 0600 /etc/app/tls/app.key
+
+install -d -m 0755 /opt/app
+cat > /opt/app/server.py <<'PYTHON'
+${server_py}
+PYTHON
+
+cat > /etc/app/app.env <<ENV
+APP_PORT=${service_port}
+INSTANCE_ID=$INSTANCE_ID
+AZ_ID=$AZ_ID
+ENV
+
+# Runs as a throwaway unprivileged user. It may bind the service port and read its TLS
+# key through systemd credentials, and nothing else.
+cat > /etc/systemd/system/shared-app.service <<'UNIT'
+[Unit]
+Description=Shared Services lab app (PrivateLink, Proxy Protocol v2)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+EnvironmentFile=/etc/app/app.env
+LoadCredential=app.crt:/etc/app/tls/app.crt
+LoadCredential=app.key:/etc/app/tls/app.key
+ExecStart=/usr/bin/python3 /opt/app/server.py
+DynamicUser=yes
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable --now shared-app.service
